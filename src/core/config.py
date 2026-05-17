@@ -11,11 +11,11 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-    APP_NAME: str = "Fusion Project"
+    APP_NAME: str = "墨智 MoZhi"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
 
-    DATABASE_URL: str = "sqlite:///./fusion_project.db"
+    DATABASE_URL: str = "sqlite:///./mozhi.db"
 
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama2"

@@ -14,13 +14,13 @@ from src.api.routes import session_routes, novel_routes, chat_routes, network_ro
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
-    logger.info("Starting Fusion Project API...")
+    logger.info("Starting 墨智 MoZhi API...")
     yield
-    logger.info("Shutting down Fusion Project API...")
+    logger.info("Shutting down 墨智 MoZhi API...")
 
 
 app = FastAPI(
-    title="Fusion Project API",
+    title="墨智 MoZhi API",
     description="AI-powered novel creation platform",
     version=settings.APP_VERSION,
     lifespan=lifespan

@@ -108,7 +108,7 @@ function App() {
       <ConfigProvider locale={zhCN} theme={inkTheme}>
         <Layout style={{ minHeight: '100vh' }}>
           <Header style={{ display: 'flex', alignItems: 'center', background: '#1a1410' }}>
-            <h1 style={{ color: '#d4c5b2', fontFamily: "'Noto Serif SC', serif", margin: 0 }}>墨 · Fusion Project</h1>
+            <h1 style={{ color: '#d4c5b2', fontFamily: "'Noto Serif SC', serif", margin: 0 }}>墨 · 智 MoZhi</h1>
           </Header>
           <Content style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Spin size="large" indicator={<LoadingOutlined style={{ fontSize: 28, color: '#c04040' }} />}>
@@ -124,7 +124,7 @@ function App() {
     <ConfigProvider locale={zhCN} theme={inkTheme}>
       <Layout style={{ minHeight: '100vh' }}>
         <Header style={{ display: 'flex', alignItems: 'center', background: '#1a1410' }}>
-          <h1 style={{ color: '#d4c5b2', fontFamily: "'Noto Serif SC', serif", margin: 0 }}>墨 · Fusion Project</h1>
+          <h1 style={{ color: '#d4c5b2', fontFamily: "'Noto Serif SC', serif", margin: 0 }}>墨 · 智 MoZhi</h1>
         </Header>
         <Layout>
           <Sider width={180} style={{ background: '#2c1810' }}>

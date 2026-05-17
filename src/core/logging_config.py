@@ -23,7 +23,7 @@ def setup_logging():
 
     # 通用日志 — 每日午夜轮转，避免 Windows seek 错误
     logger.add(
-        log_dir / "fusion_project_{time:YYYY-MM-DD}.log",
+        log_dir / "mozhi_{time:YYYY-MM-DD}.log",
         format=log_format,
         level=settings.LOG_LEVEL,
         rotation="00:00",
@@ -48,5 +48,5 @@ def setup_logging():
         filter=lambda record: record["level"].name == "ERROR"
     )
 
-    logger.info(f"Fusion Project v{settings.APP_VERSION} starting...")
+    logger.info(f"墨智 MoZhi v{settings.APP_VERSION} starting...")
     logger.info(f"Log level: {settings.LOG_LEVEL}")
