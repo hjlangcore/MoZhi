@@ -1,0 +1,32 @@
+# Ollama Modelfile - Fusion Project 专用模型
+# 构建命令: ollama create fusion-writer -f Modelfile
+
+FROM qwen2.5:3b
+
+# 温度设为 0.8，小说创作需要更多创意
+PARAMETER temperature 0.8
+
+# 上下文窗口: 4G 显存建议 6144
+PARAMETER num_ctx 6144
+
+# 最大生成长度
+PARAMETER num_predict 2048
+
+# GPU 层数 (仅 Qwen2.5:7b 时需要调整)
+# 7B 有 28 层，4G 显存建议 num_gpu = 20-22
+# 3B 模型较小，可以全部放 GPU，不需要设此参数
+# PARAMETER num_gpu 22
+
+# 停止标记
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|endoftext|>"
+
+# 系统提示词
+SYSTEM """你是专业的中文玄幻小说作家，擅长创作热血、精彩的玄幻修仙故事。
+写作风格:
+- 语言流畅生动，画面感强
+- 人物塑造鲜活，对话自然
+- 战斗描写精彩，境界体系严谨
+- 情节紧凑，悬念迭起
+- 擅用中国传统网文的叙事方式
+请使用简洁有力的中文，避免现代词汇混入古代场景。"""

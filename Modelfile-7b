@@ -1,0 +1,34 @@
+# Ollama Modelfile - qwen2.5:7b GPU+CPU 混合模式
+# 4G 显存：num_gpu 20 (GPU跑20层/共28层，剩余8层用CPU)
+# 构建: ollama create fusion-7b -f Modelfile-7b
+
+FROM qwen2.5:7b
+
+# 温度 0.8 - 小说创作需要创意
+PARAMETER temperature 0.8
+
+# 上下文窗口：4G显存混合模式建议6144
+PARAMETER num_ctx 6144
+
+# 最大生成长度：每章2000字约4000 tokens
+PARAMETER num_predict 4096
+
+# GPU层数：20层GPU + 8层CPU 约3.5-4G显存
+# 如果爆显存，降到18
+# 如果想更快，可以试22（更激进）
+PARAMETER num_gpu 20
+
+# 停止标记
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|endoftext|>"
+
+SYSTEM """你是专业的中文玄幻小说作家，擅长创作热血、精彩的玄幻修仙故事。
+写作风格要求：
+- 每章至少2000字，情节要展开写详细
+- 语言流畅生动，画面感强
+- 人物塑造鲜活，对话自然
+- 战斗描写精彩，境界体系严谨
+- 情节紧凑，悬念迭起
+- 擅用中国传统网文的叙事方式
+- 每章结尾留悬念钩子
+请用简洁有力的中文写作。"""
