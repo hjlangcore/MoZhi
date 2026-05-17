@@ -62,7 +62,7 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/hjlangcore/fusion-project.git
+git clone https://github.com/hjlangcore/MoZhi.git
 cd fusion-project
 
 # 2. 创建虚拟环境
@@ -124,7 +124,7 @@ $env:OLLAMA_GPU = "cuda"
 ollama serve
 
 # 4. 克隆并安装
-git clone https://github.com/hjlangcore/fusion-project.git
+git clone https://github.com/hjlangcore/MoZhi.git
 cd fusion-project
 python -m venv venv
 venv\Scripts\activate
@@ -150,7 +150,7 @@ export OLLAMA_GPU=cuda
 ollama serve &
 
 # 4. 克隆并安装
-git clone https://github.com/hjlangcore/fusion-project.git
+git clone https://github.com/hjlangcore/MoZhi.git
 cd fusion-project
 python3 -m venv venv
 source venv/bin/activate
@@ -897,7 +897,7 @@ pytest tests/ --cov=src --cov-report=html
 
 ```bash
 # 1. Fork 并克隆
-git clone https://github.com/your-username/fusion-project.git
+git clone https://github.com/your-username/MoZhi.git
 cd fusion-project
 
 # 2. 创建分支
@@ -953,10 +953,10 @@ copies or substantial portions of the Software.
 
 ## 📞 联系方式
 
-- **项目地址**: [https://github.com/hjlangcore/fusion-project](https://github.com/hjlangcore/fusion-project)
-- **问题反馈**: [Issues](https://github.com/hjlangcore/fusion-project/issues) — Bug 报告和功能请求
-- **讨论交流**: [Discussions](https://github.com/hjlangcore/fusion-project/discussions) — 使用经验和技术讨论
-- **邮箱**: [your-email@example.com](mailto:your-email@example.com)
+- **项目地址**: [https://github.com/hjlangcore/MoZhi](https://github.com/hjlangcore/MoZhi)
+- **问题反馈**: [Issues](https://github.com/hjlangcore/MoZhi/issues) — Bug 报告和功能请求
+- **讨论交流**: [Discussions](https://github.com/hjlangcore/MoZhi/discussions) — 使用经验和技术讨论
+- **邮箱**: [15303306269@163.com](mailto:15303306269@163.com)
 
 ---
 
