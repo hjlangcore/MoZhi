@@ -8,6 +8,7 @@ from src.api.schemas import BaseResponse
 from src.core.config import settings
 from src.novel_agent.workflow import LLMClient
 from src.novel_agent.style_analyzer import get_style_analyzer
+from src.novel_agent.postprocessor import PostProcessor, get_post_processor
 
 
 router = APIRouter(prefix="/ai/generate", tags=["ai-generate"])
@@ -20,6 +21,15 @@ def get_llm_client() -> LLMClient:
         timeout=settings.OLLAMA_TIMEOUT,
         num_gpu=14,
     )
+
+
+_post_processor: PostProcessor = None
+
+def _get_post_processor() -> PostProcessor:
+    global _post_processor
+    if _post_processor is None:
+        _post_processor = get_post_processor()
+    return _post_processor
 
 
 def _extract_json(text: str) -> dict:
@@ -125,10 +135,21 @@ async def generate_worldview(data: WorldViewGenerateRequest):
             result = _extract_json(raw)
 
         logger.info(f"Worldview generated successfully")
+
+        processed_text = json.dumps(result, ensure_ascii=False, indent=2)
+        cleaned_text, report = _get_post_processor().process(processed_text)
+        if report.get("steps"):
+            logger.info(f"Post-processor applied to worldview: {report['steps']}")
+        try:
+            cleaned_result = json.loads(cleaned_text)
+        except Exception:
+            logger.warning("Post-processor output is not valid JSON, using original result")
+            cleaned_result = result
+
         return BaseResponse(
             code=200,
             message="Worldview generated successfully",
-            data=result,
+            data=cleaned_result,
         )
     except Exception as e:
         logger.error(f"Worldview generation failed: {e}")
@@ -180,10 +201,21 @@ async def generate_character(data: CharacterGenerateRequest):
             result = _extract_json(raw)
 
         logger.info(f"Character generated successfully: {result.get('name', '?')}")
+
+        processed_text = json.dumps(result, ensure_ascii=False, indent=2)
+        cleaned_text, report = _get_post_processor().process(processed_text)
+        if report.get("steps"):
+            logger.info(f"Post-processor applied to character: {report['steps']}")
+        try:
+            cleaned_result = json.loads(cleaned_text)
+        except Exception:
+            logger.warning("Post-processor output is not valid JSON, using original result")
+            cleaned_result = result
+
         return BaseResponse(
             code=200,
             message="Character generated successfully",
-            data=result,
+            data=cleaned_result,
         )
     except Exception as e:
         logger.error(f"Character generation failed: {e}")
@@ -219,10 +251,21 @@ async def analyze_style(data: StyleAnalyzeRequest):
         }
 
         logger.info(f"Style analysis completed, tags: {fp.style_tags}")
+
+        processed_text = json.dumps(result, ensure_ascii=False, indent=2)
+        cleaned_text, report = _get_post_processor().process(processed_text)
+        if report.get("steps"):
+            logger.info(f"Post-processor applied to style analysis: {report['steps']}")
+        try:
+            cleaned_result = json.loads(cleaned_text)
+        except Exception:
+            logger.warning("Post-processor output is not valid JSON, using original result")
+            cleaned_result = result
+
         return BaseResponse(
             code=200,
             message="Style analysis completed",
-            data=result,
+            data=cleaned_result,
         )
     except Exception as e:
         logger.error(f"Style analysis failed: {e}")

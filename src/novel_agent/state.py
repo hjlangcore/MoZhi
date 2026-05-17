@@ -173,6 +173,9 @@ class NovelKnowledgeBase(BaseModel):
     # 文风知识
     style_rules: List[str] = Field(default_factory=list)
     forbidden_words: List[str] = Field(default_factory=list)
+    scene_types_used: Dict[str, int] = Field(default_factory=dict)
+    milestone_events: List[Dict[str, Any]] = Field(default_factory=list)
+    antagonist_states: Dict[str, str] = Field(default_factory=dict)
 
     def get_character_context(self, name: str) -> str:
         char = self.characters.get(name)
@@ -233,9 +236,24 @@ class NovelState(BaseModel):
     state_changes: List[StateChange] = Field(default_factory=list)
     # 新增：卷级进度追踪
     current_volume: int = 1
+    consistency_state_path: Optional[str] = None
+    scene_history: List[Dict[str, Any]] = Field(default_factory=list)
+    title_history: List[str] = Field(default_factory=list)
 
     class Config:
         use_enum_values = True
+
+    def record_scene_usage(self, chapter: int, scene_id: str, scene_name: str) -> None:
+        self.scene_history.append({"chapter": chapter, "scene_id": scene_id, "scene_name": scene_name})
+
+    def record_title_used(self, title: str) -> None:
+        self.title_history.append(title)
+
+    def update_antagonist_state(self, name: str, status: str) -> None:
+        self.knowledge_base.antagonist_states[name] = status
+
+    def record_milestone(self, name: str, chapter: int, event_type: str = "achievement") -> None:
+        self.knowledge_base.milestone_events.append({"name": name, "chapter": chapter, "type": event_type})
 
 
 class SessionModel(BaseModel):

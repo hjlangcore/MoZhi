@@ -28,6 +28,11 @@ from src.novel_agent.human_review_gate import (
     ReviewGateConfig,
     ReviewStatus
 )
+from src.novel_agent.consistency_tracker import ConsistencyState, CharacterCard, MilestoneStatus, ForeshadowStatus
+from src.novel_agent.scene_rotator import SceneRotator, SCENE_POOL
+from src.novel_agent.title_manager import TitleManager
+from src.novel_agent.postprocessor import PostProcessor, get_post_processor
+from src.novel_agent.prompts import build_chapter_prompt, ANTI_DEGRADATION_SYSTEM_PROMPT
 
 
 class ActionType(str, Enum):
@@ -84,6 +89,10 @@ class ChapterLoopResult:
     actions_executed: List[str] = field(default_factory=list)
     total_llm_calls: int = 0
     success: bool = False
+    constraints_used: dict = field(default_factory=dict)
+    scene_selected: Optional[dict] = None
+    suggested_title: str = ""
+    post_process_report: Optional[dict] = None
 
     @property
     def efficiency_ratio(self) -> float:
@@ -307,6 +316,48 @@ class AgentLoopExecutor:
         self.workflow = workflow
         self.editor = EditorAgent()
 
+        self.consistency_state: Optional[ConsistencyState] = None
+        self.scene_rotator: Optional[SceneRotator] = None
+        self.title_manager: Optional[TitleManager] = None
+        self.post_processor: Optional[PostProcessor] = None
+
+    def _init_consistency_modules(self, novel_state):
+        if self.consistency_state is None:
+            data_dir = Path("data")
+            cs_path = str(data_dir / f"consistency_{novel_state.novel_id or 'default'}.json")
+            if Path(cs_path).exists():
+                self.consistency_state = ConsistencyState.load_from_file(cs_path)
+            else:
+                self.consistency_state = ConsistencyState(novel_id=novel_state.novel_id or "default")
+                if novel_state.setting and novel_state.setting.main_character:
+                    mc = novel_state.setting.main_character
+                    self.consistency_state.add_character(CharacterCard(
+                        name=mc.name or "主角", gender="男",
+                        identity=mc.role or "修士",
+                        abilities=[], personality_traits=[],
+                        speech_style="", first_appearance=1,
+                        relationships=[]
+                    ))
+
+            sr_path = str(data_dir / f"scene_rotator_{novel_state.novel_id or 'default'}.json")
+            if Path(sr_path).exists():
+                self.scene_rotator = SceneRotator.load_state(sr_path)
+            else:
+                self.scene_rotator = SceneRotator()
+
+            tm_path = str(data_dir / f"titles_{novel_state.novel_id or 'default'}.json")
+            self.title_manager = TitleManager(storage_path=tm_path)
+
+            for t in getattr(novel_state, 'title_history', []):
+                self.title_manager.register_title(t)
+            for sh in getattr(novel_state, 'scene_history', []):
+                self.scene_rotator.record_scene(
+                    sh.get('chapter', 0), sh.get('scene_id', ''),
+                    sh.get('scene_name', '')
+                )
+
+            self.post_processor = get_post_processor()
+
     def run_chapter_loop(self, chapter_number: int) -> ChapterLoopResult:
         """执行单章的完整 Agent Loop
 
@@ -324,6 +375,35 @@ class AgentLoopExecutor:
             iteration=iteration,
             reasoning="初始写作循环",
         )
+
+        self._init_consistency_modules(self.workflow.novel_state)
+
+        constraints = self.consistency_state.get_constraints_for_chapter(chapter_number)
+
+        scene_info = self.scene_rotator.pick_scene_for_next_chapter()
+        scene_constraint_prompt = self.scene_rotator.get_scene_constraint_prompt(chapter_number)
+
+        base_title = f"第{chapter_number}章"
+        suggested_title = self.title_manager.generate_unique_title(base_title)
+
+        result.constraints_used = constraints
+        result.scene_selected = scene_info
+        result.suggested_title = suggested_title
+
+        constraint_prompt_text = ""
+        if constraints and (constraints.get("forbidden_milestones") or constraints.get("dead_antagonists") or constraints.get("overdue_foreshadows")):
+            from src.novel_agent.prompts import format_milestone_lock, format_foreshadow_reminders
+            parts = []
+            if constraints.get("forbidden_milestones"):
+                parts.append(format_milestone_lock(constraints.get("achieved_milestones", []), constraints["forbidden_milestones"]))
+            if constraints.get("dead_antagonists"):
+                parts.append(f"【已死亡角色 — 禁止出现】{', '.join(constraints['dead_antagonists'])}")
+            if constraints.get("overdue_foreshadows"):
+                parts.append(format_foreshadow_reminders(constraints["overdue_foreshadows"]))
+            if scene_constraint_prompt:
+                parts.append(scene_constraint_prompt)
+            constraint_prompt_text = "\n\n".join(parts)
+            logger.debug(f"Injected {len(parts)} constraint blocks into chapter {chapter_number}")
 
         # Phase 1: 思考 + 规划（来自reasoning_planner）
         # Phase 2: 动态记忆权重
@@ -349,6 +429,41 @@ class AgentLoopExecutor:
         result.decisions.append(decision)
         result.actions_executed.extend(["reasoning_plan", "memory_reweight", "write_chapter", "gate_check"])
         llm_calls += 2  # planning + writing
+
+        if content and self.post_processor:
+            cleaned_content, pp_report = self.post_processor.process(
+                content, chapter_num=chapter_number
+            )
+            if pp_report.get("steps"):
+                logger.info(f"Chapter {chapter_number} post-processed: {pp_report['steps']}")
+                content = cleaned_content
+                result.post_process_report = pp_report
+
+        if self.consistency_state and content:
+            detected_scene = self.scene_rotator.detect_scene_from_text(content)
+            if detected_scene:
+                self.scene_rotator.record_scene(
+                    chapter_number, detected_scene["id"], detected_scene["name"]
+                )
+                self.workflow.novel_state.record_scene_usage(
+                    chapter_number, detected_scene["id"], detected_scene["name"]
+                )
+
+            self.title_manager.register_title(result.suggested_title or base_title)
+            self.workflow.novel_state.record_title_used(result.suggested_title or base_title)
+
+            milestone_keywords = ["突破", "晋级", "进阶", "大成", "圆满"]
+            for kw in milestone_keywords:
+                if kw in content and not self.consistency_state.is_milestone_achieved(f"{kw}事件_第{chapter_number}章"):
+                    self.consistency_state.achieve_milestone(f"{kw}事件_第{chapter_number}章", chapter_number)
+                    self.workflow.novel_state.record_milestone(kw, chapter_number)
+
+        try:
+            self.consistency_state.save_to_file(str(Path("data") / f"consistency_{self.workflow.novel_state.novel_id or 'default'}.json"))
+            self.scene_rotator.save_state(str(Path("data") / f"scene_rotator_{self.workflow.novel_state.novel_id or 'default'}.json"))
+            self.title_manager.save()
+        except Exception as e:
+            logger.warning(f"Failed to save consistency state: {e}")
 
         # ================================================================
         # 动态迭代循环

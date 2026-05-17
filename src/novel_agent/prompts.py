@@ -28,6 +28,11 @@ SETTING_GENERATION_PROMPT = """
 2. 设定要符合玄幻修仙题材
 3. 境界名称要符合传统玄幻设定（如练气、筑基、金丹等）
 4. 输出必须是有效的JSON格式
+
+## 设定一致性约束
+- 禁止生成与已有设定矛盾的描述（如境界体系前后不一致）
+- 五要素（世界观、力量体系、势力、角色、主线）之间必须逻辑自洽
+- 同一概念在全文中命名必须统一，不得出现同物异名
 """
 
 FRAMEWORK_GENERATION_PROMPT = """
@@ -111,6 +116,12 @@ CHAPTER_WRITING_PROMPT = """
 6. 结尾必须有钩子（悬念/新威胁/新目标/反转）
 7. 对话自然口语化，避免正式书面语
 8. 视角集中，同一段不跳多人视角
+
+## 角色一致性约束
+- 角色的姓名、性别、身份一旦确定，后续章节不得擅自更改
+- 角色的性格特征应保持前后一致，除非有明确的成长弧线
+- 角色之间的关系应合理发展，不能凭空出现或消失
+- 已死亡的角色不得无解释复活
 
 【字数铁律】：本章必须至少{target_words}字，这是硬性要求。请确保输出完整、足够长。
 请直接输出章节内容，不要添加任何额外说明。
@@ -251,6 +262,11 @@ STYLE_ANCHOR_EXTRACTION_PROMPT = """
     "forbidden_patterns": ["应避免的表达模式"],
     "vocabulary_preferences": ["偏好使用的词汇类型"]
 }}
+
+## 风格自洽约束
+- 提取的风格参数必须在后续分析中保持一致
+- 语气、句式节奏、词汇偏好三者之间不得互相矛盾
+- 禁止_patterns 与 vocabulary_preferences 之间不能存在冲突
 """
 
 CONTINUITY_CHECK_PROMPT = """
@@ -361,3 +377,199 @@ VOLUME_TITLE_PROMPT = """
 
 def format_prompt(template: str, **kwargs) -> str:
     return template.format(**kwargs)
+
+ANTI_DEGRADATION_SYSTEM_PROMPT = """
+【创作质量强制约束 — 严格遵守】
+
+## 禁止事项（违反将导致章节被拒）
+1. **禁止重复已发生的重大事件**：如果主角已经突破过某个境界，不得再次描写"突破"该境界的情节。请用"巩固""感悟""运用"等替代。
+2. **禁止反派无解释复活**：已明确死亡的角色不得再次出现（除非是回忆、幻象或明确说明是替身/分身）。
+3. **禁止场景过度重复**：连续3章以上使用同一类型场景（如山洞）将被拒绝。请在不同场景间轮换。
+4. **禁止标题重复**：不要使用与之前章节相同或高度相似的标题。
+
+## AI痕迹词限制
+每2000字正文中，以下词汇各自出现不超过2次：
+- 仿佛、好像、似乎、如同
+- 忽然、突然、骤然
+- 缓缓、慢慢、徐徐
+- 眼中闪过一丝、目光微动
+- 不由得、不禁、下意识
+- 心中涌起、心中暗想
+- 一股...力量/气息/威压
+- 深吸一口气
+
+## 元叙事禁令
+绝对禁止在正文中出现以下类型的文字：
+- "通过这样的结构/安排..."
+- "有效提升...吸引力"
+- "激发读者..."
+- "这样结束故事如何"
+- 任何面向写作指导的元文本
+
+## 角色一致性要求
+- 角色的姓名、性别、身份一旦确定，后续章节不得擅自更改
+- 角色的性格特征应保持前后一致，除非有明确的成长弧线
+- 角色之间的关系应合理发展，不能凭空出现或消失
+"""
+
+CHAPTER_GENERATION_PROMPT = """
+你是一位专业的玄幻小说作家。现在需要撰写第{chapter_num}章的内容。
+
+{anti_degradation_rules}
+
+{character_constraints}
+
+{scene_constraints}
+
+{foreshadow_reminders}
+
+## 本章要求
+- 标题：{suggested_title}
+- 字数：约{target_words}字
+- 场景：{recommended_scene}
+- 剧情位置：{plot_position_description}
+
+## 写作指引
+1. 开头必须有吸引读者的钩子（悬念/冲突/反转）
+2. 中段推进剧情，至少有一个实质性事件发生
+3. 结尾留下悬念或转折点
+4. 对话要符合角色性格和语言风格
+5. 描写要具体生动，避免空洞的概括性叙述
+
+## 输出格式
+直接输出正文内容，不需要任何标记或说明。
+"""
+
+
+def build_chapter_prompt(
+    chapter_num: int,
+    target_words: int,
+    constraints: dict,
+    suggested_title: str,
+    plot_context: str,
+) -> str:
+    """
+    动态构建章节生成 Prompt
+
+    Args:
+        constraints: 来自 ConsistencyState.get_constraints_for_chapter() 的结果字典
+        包含 keys: characters, achieved_milestones, forbidden_milestones,
+                   active_foreshadows_to_remind, overdue_foreshadows,
+                   dead_antagonists, chapter_context
+    """
+    anti_degradation_rules = ANTI_DEGRADATION_SYSTEM_PROMPT.strip()
+
+    character_constraints = format_character_cards(constraints.get("characters", []))
+
+    scene_info = constraints.get("chapter_context", {})
+    scene_constraints = format_scene_constraint(scene_info) if scene_info else ""
+
+    foreshadows = constraints.get("active_foreshadows_to_remind", [])
+    overdue = constraints.get("overdue_foreshadows", [])
+    all_foreshadows = foreshadows + overdue
+    foreshadow_reminders = format_foreshadow_reminders(all_foreshadows) if all_foreshadows else ""
+
+    milestone_lock = format_milestone_lock(
+        constraints.get("achieved_milestones", []),
+        constraints.get("forbidden_milestones", []),
+    )
+    if milestone_lock:
+        anti_degradation_rules = anti_degradation_rules + "\n\n" + milestone_lock
+
+    dead_antagonists = constraints.get("dead_antagonists", [])
+    if dead_antagonists:
+        names = ", ".join(dead_antagonists)
+        anti_degradation_rules += f"\n\n【已死亡反派名单】：{names}，以上角色严禁复活。"
+
+    return CHAPTER_GENERATION_PROMPT.format(
+        chapter_num=chapter_num,
+        target_words=target_words,
+        anti_degradation_rules=anti_degradation_rules,
+        character_constraints=character_constraints,
+        scene_constraints=scene_constraints,
+        foreshadow_reminders=foreshadow_reminders,
+        suggested_title=suggested_title,
+        recommended_scene=scene_info.get("recommended_scene", "待定") if scene_info else "待定",
+        plot_position_description=plot_context,
+    )
+
+
+def format_scene_constraint(scene_info: dict) -> str:
+    """将 SceneRotator 的输出格式化为可读的约束文本"""
+    if not scene_info:
+        return ""
+
+    parts = []
+    recommended = scene_info.get("recommended_scene")
+    if recommended:
+        parts.append(f"推荐场景：{recommended}")
+
+    forbidden = scene_info.get("forbidden_scenes", [])
+    if forbidden:
+        parts.append(f"禁止场景：{'、'.join(forbidden)}")
+
+    recent = scene_info.get("recent_scenes", [])
+    if recent:
+        parts.append(f"最近已用场景：{' → '.join(recent)}")
+
+    if not parts:
+        return ""
+
+    return "## 场景约束\n" + "\n".join(f"- {p}" for p in parts)
+
+
+def format_character_cards(cards: list) -> str:
+    """将角色卡列表格式化为 Prompt 注入文本"""
+    if not cards:
+        return ""
+
+    lines = ["## 当前活跃角色"]
+    for card in cards:
+        name = card.get("name", "未知")
+        role = card.get("role", "")
+        status = card.get("status", "")
+        traits = card.get("traits", "")
+        line = f"- **{name}**"
+        if role:
+            line += f"（{role}）"
+        if status:
+            line += f" | 状态：{status}"
+        if traits:
+            line += f" | 特征：{traits}"
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def format_foreshadow_reminders(foreshadows: list) -> str:
+    """将待处理伏笔列表格式化提醒文本"""
+    if not foreshadows:
+        return ""
+
+    lines = ["## 待收伏笔提醒"]
+    for idx, fs in enumerate(foreshadows, 1):
+        content = fs.get("content", "")
+        introduced_ch = fs.get("introduced_chapter", "?")
+        urgency = fs.get("urgency", "normal")
+        urgency_tag = {"high": "【紧急】", "medium": "【建议回收】", "normal": ""}.get(urgency, "")
+        lines.append(f"{idx}. {urgency_tag}{content}（第{introduced_ch}章埋下）")
+
+    return "\n".join(lines)
+
+
+def format_milestone_lock(achieved: list, forbidden: list) -> str:
+    """将里程碑锁定信息格式化为约束文本"""
+    parts = []
+
+    if achieved:
+        items = [f"「{m}」" for m in achieved]
+        parts.append(f"已完成里程碑：{'，'.join(items)}。后续描写请使用'巩固''感悟''运用'等替代词，禁止再次描写'突破'。")
+
+    if forbidden:
+        items = [f"「{m}」" for m in forbidden]
+        parts.append(f"当前阶段禁止触达的里程碑：{'，'.join(items)}。")
+
+    if not parts:
+        return ""
+
+    return "## 里程碑锁定\n" + "\n".join(f"- {p}" for p in parts)
