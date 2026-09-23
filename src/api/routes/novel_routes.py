@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Body
 from typing import List, Any, Dict
+from pydantic import BaseModel, Field, validator
 from loguru import logger
+import re
 
 from src.api.schemas import (
     NovelCreate, NovelResponse, NovelSettingResponse,
@@ -14,6 +16,30 @@ from src.novel_agent.web_search import get_web_searcher
 from src.core.config import settings
 
 router = APIRouter(prefix="/novels", tags=["novels"])
+
+
+# 输入验证 Schema
+class WorldViewInput(BaseModel):
+    """世界观输入验证 - 防止恶意数据注入"""
+    
+    class Config:
+        extra = "forbid"  # 禁止额外字段
+    
+    description: str = Field(default="", max_length=50000)
+    characters: list = Field(default_factory=list, max_items=200)
+    settings: dict = Field(default_factory=dict)
+    style_settings: dict = Field(default_factory=dict)
+    
+    @validator('description')
+    @classmethod
+    def sanitize_description(cls, v):
+        """清理潜在的 XSS 脚本标签"""
+        if v:
+            # 移除 script 标签
+            v = re.sub(r'<script.*?>.*?</script>', '', v, flags=re.IGNORECASE | re.DOTALL)
+            # 移除 javascript: 协议
+            v = re.sub(r'javascript:', '', v, flags=re.IGNORECASE)
+        return v
 
 
 def get_store():
@@ -93,18 +119,20 @@ async def get_novel_setting(novel_id: str, store=Depends(get_store)):
 
 
 @router.post("/{novel_id}/worldview", response_model=BaseResponse)
-async def save_worldview(novel_id: str, world_view: Dict[str, Any], store=Depends(get_store)):
+async def save_worldview(novel_id: str, data: WorldViewInput, store=Depends(get_store)):
+    """保存世界观 - 带输入验证"""
     novel = store.get_novel(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="Novel not found")
 
-    store.update_novel(novel_id, world_view=world_view)
+    # 验证通过后才保存
+    store.update_novel(novel_id, world_view=data.dict())
     logger.info(f"Worldview saved for novel {novel_id}")
 
     return BaseResponse(
         code=200,
         message="Worldview saved successfully",
-        data=world_view,
+        data=data.dict(),
     )
 
 

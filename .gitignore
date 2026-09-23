@@ -1,49 +1,54 @@
+```
+# Environment variables
+.env.local
+
+# Logs
+*.log
+
+# Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyc
+*.pyo
+*.pyd
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+env/
+venv/
+.venv/
+.ENV
+.python-version
 .pytest_cache/
 .coverage
-htmlcov/
+coverage/
 
-.env
-.env.local
-.env.*.local
-*.log
-logs/
+# Security and test reports
+SECURITY_AND_PERFORMANCE_REPORT.md
+SECURITY_FIXES_SUMMARY.md
+RUNTIME_TEST_REPORT.md
 
-node_modules/
-frontend/dist/
-
-data/
-novel_output/
-output.txt
-
-.claude/
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
+# OS
 .DS_Store
 Thumbs.db
 
-CACHEDIR.TAG
-.trae/
+# Build artifacts
+dist/
+build/
+target/
+*.o
+*.obj
+*.out
+*.exe
+*.dll
+*.so
+*.a
+
+# Dependencies
+node_modules/
+.mypy_cache/
+.gradle/
+```

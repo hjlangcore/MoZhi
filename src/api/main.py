@@ -40,9 +40,19 @@ async def log_requests(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     duration = time.time() - start_time
-    logger.info(
-        f"{request.method} {request.url.path} - {response.status_code} - {duration:.3f}s"
-    )
+    
+    # 过滤敏感信息，避免记录到日志中
+    safe_path = request.url.path
+    sensitive_patterns = ['token', 'password', 'secret', 'key', 'auth']
+    
+    # 简单检查 URL 是否包含敏感参数（如果有 query string）
+    if request.url.query:
+        for pattern in sensitive_patterns:
+            if pattern in request.url.query.lower():
+                safe_path = f"{request.url.path}?[REDACTED]"
+                break
+    
+    logger.info(f"{request.method} {safe_path} - {response.status_code} - {duration:.3f}s")
     return response
 
 
@@ -60,13 +70,21 @@ async def fusion_exception_handler(request: Request, exc: FusionException):
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {exc}")
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    
+    # 检查是否为内部请求（允许显示详细信息）
+    client_ip = request.client.host if request.client else ""
+    is_internal = client_ip in ["127.0.0.1", "::1"] or client_ip.startswith("10.") or client_ip.startswith("192.168.")
+    
+    # 只在 DEBUG 模式且为内部请求时显示详细信息
+    detail = str(exc) if settings.DEBUG and is_internal else None
+    
     return JSONResponse(
         status_code=500,
         content={
             "code": "INTERNAL_ERROR",
             "message": "Internal server error",
-            "detail": str(exc) if settings.DEBUG else None
+            "detail": detail
         }
     )
 
