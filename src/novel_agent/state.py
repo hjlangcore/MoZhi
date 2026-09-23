@@ -1,8 +1,10 @@
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 import json
+import re
+import threading
 
 
 class NovelStatus(str, Enum):
@@ -269,139 +271,156 @@ class SessionStore:
     def __init__(self):
         self._sessions: Dict[str, SessionModel] = {}
         self._novels: Dict[str, NovelState] = {}
+        # 添加线程锁防止竞态条件
+        self._lock = threading.RLock()
 
     def create_session(self, session_name: str) -> SessionModel:
         import uuid
-        session = SessionModel(
-            session_id=str(uuid.uuid4()),
-            session_name=session_name,
-            created_at=datetime.now(),
-            updated_at=datetime.now()
-        )
-        self._sessions[session.session_id] = session
+        with self._lock:
+            session = SessionModel(
+                session_id=str(uuid.uuid4()),
+                session_name=session_name,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            self._sessions[session.session_id] = session
         return session
 
     def get_session(self, session_id: str) -> Optional[SessionModel]:
-        return self._sessions.get(session_id)
+        with self._lock:
+            return self._sessions.get(session_id)
 
     def list_sessions(self) -> List[SessionModel]:
-        return list(self._sessions.values())
+        with self._lock:
+            return list(self._sessions.values())
 
     def update_session(self, session_id: str, **kwargs) -> Optional[SessionModel]:
-        if session_id in self._sessions:
-            session = self._sessions[session_id]
-            for key, value in kwargs.items():
-                if hasattr(session, key):
-                    setattr(session, key, value)
-            session.updated_at = datetime.now()
-            return session
+        with self._lock:
+            if session_id in self._sessions:
+                session = self._sessions[session_id]
+                for key, value in kwargs.items():
+                    if hasattr(session, key):
+                        setattr(session, key, value)
+                session.updated_at = datetime.now()
+                return session
         return None
 
     def delete_session(self, session_id: str) -> bool:
-        if session_id in self._sessions:
-            del self._sessions[session_id]
-            return True
+        with self._lock:
+            if session_id in self._sessions:
+                del self._sessions[session_id]
+                return True
         return False
 
     def create_novel(self, session_id: str, theme: str, style_type: str = "凡人流") -> Optional[NovelState]:
         import uuid
-        if session_id not in self._sessions:
-            return None
+        with self._lock:
+            if session_id not in self._sessions:
+                return None
 
-        novel = NovelState(
-            novel_id=str(uuid.uuid4()),
-            session_id=session_id,
-            status=NovelStatus.DRAFT,
-            setting=NovelSettingModel(
-                novel_title="待定",
-                world_framework="",
-                power_system="",
-                major_factions="",
-                main_character=CharacterModel(
-                    name="待定",
-                    role="主角",
-                    description="",
-                    importance="main"
+            novel = NovelState(
+                novel_id=str(uuid.uuid4()),
+                session_id=session_id,
+                status=NovelStatus.DRAFT,
+                setting=NovelSettingModel(
+                    novel_title="待定",
+                    world_framework="",
+                    power_system="",
+                    major_factions="",
+                    main_character=CharacterModel(
+                        name="待定",
+                        role="主角",
+                        description="",
+                        importance="main"
+                    ),
+                    main_plot_thread="",
+                    core_conflicts="",
+                    style_type=style_type,
+                    style_description=""
                 ),
-                main_plot_thread="",
-                core_conflicts="",
-                style_type=style_type,
-                style_description=""
-            ),
-            chapters=[],
-            created_at=datetime.now(),
-            updated_at=datetime.now()
-        )
-        self._novels[novel.novel_id] = novel
-        self.update_session(session_id, current_novel_id=novel.novel_id)
+                chapters=[],
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            self._novels[novel.novel_id] = novel
+            self.update_session(session_id, current_novel_id=novel.novel_id)
         return novel
 
     def get_novel(self, novel_id: str) -> Optional[NovelState]:
-        return self._novels.get(novel_id)
+        with self._lock:
+            return self._novels.get(novel_id)
 
     def update_novel(self, novel_id: str, **kwargs) -> Optional[NovelState]:
-        if novel_id in self._novels:
-            novel = self._novels[novel_id]
-            for key, value in kwargs.items():
-                if hasattr(novel, key):
-                    setattr(novel, key, value)
-            novel.updated_at = datetime.now()
-            return novel
+        with self._lock:
+            if novel_id in self._novels:
+                novel = self._novels[novel_id]
+                for key, value in kwargs.items():
+                    if hasattr(novel, key):
+                        setattr(novel, key, value)
+                novel.updated_at = datetime.now()
+                return novel
         return None
 
     def add_chapter(self, novel_id: str, chapter: ChapterModel) -> bool:
-        if novel_id in self._novels:
-            novel = self._novels[novel_id]
-            if chapter.chapter_number > len(novel.chapters) + 1:
-                return False
-            if chapter.chapter_number <= len(novel.chapters):
-                novel.chapters[chapter.chapter_number - 1] = chapter
-            else:
-                novel.chapters.append(chapter)
-            novel.updated_at = datetime.now()
-            return True
+        with self._lock:
+            if novel_id in self._novels:
+                novel = self._novels[novel_id]
+                if chapter.chapter_number > len(novel.chapters) + 1:
+                    return False
+                if chapter.chapter_number <= len(novel.chapters):
+                    novel.chapters[chapter.chapter_number - 1] = chapter
+                else:
+                    novel.chapters.append(chapter)
+                novel.updated_at = datetime.now()
+                return True
         return False
 
     def get_chapter(self, novel_id: str, chapter_number: int) -> Optional[ChapterModel]:
-        novel = self._novels.get(novel_id)
-        if novel and 0 < chapter_number <= len(novel.chapters):
-            return novel.chapters[chapter_number - 1]
+        with self._lock:
+            novel = self._novels.get(novel_id)
+            if novel and 0 < chapter_number <= len(novel.chapters):
+                return novel.chapters[chapter_number - 1]
         return None
 
     def list_novels(self) -> List[NovelState]:
-        return list(self._novels.values())
+        with self._lock:
+            return list(self._novels.values())
 
     def delete_novel(self, novel_id: str) -> bool:
-        if novel_id in self._novels:
-            del self._novels[novel_id]
-            return True
+        with self._lock:
+            if novel_id in self._novels:
+                del self._novels[novel_id]
+                return True
         return False
 
     def add_foreshadowing(self, novel_id: str, foreshadowing: ForeshadowingModel) -> bool:
-        if novel_id in self._novels:
-            novel = self._novels[novel_id]
-            novel.foreshadowing_tracking.append(foreshadowing)
-            novel.updated_at = datetime.now()
-            return True
+        with self._lock:
+            if novel_id in self._novels:
+                novel = self._novels[novel_id]
+                novel.foreshadowing_tracking.append(foreshadowing)
+                novel.updated_at = datetime.now()
+                return True
         return False
 
     def list_session_novels(self, session_id: str):
-        novels = [
-            n for n in self._novels.values()
-            if n.session_id == session_id or
-            (n.session_id is None and session_id == "legacy")
-        ]
-        novels.sort(key=lambda n: n.created_at, reverse=True)
+        with self._lock:
+            novels = [
+                n for n in self._novels.values()
+                if n.session_id == session_id or
+                (n.session_id is None and session_id == "legacy")
+            ]
+            novels.sort(key=lambda n: n.created_at, reverse=True)
         return novels
 
     def resolve_foreshadowing(self, novel_id: str, seed: str) -> bool:
-        if novel_id in self._novels:
-            novel = self._novels[novel_id]
-            for fs in novel.foreshadowing_tracking:
-                if fs.seed == seed:
-                    fs.status = "resolved"
-                    novel.updated_at = datetime.now()
-                    return True
+        with self._lock:
+            if novel_id in self._novels:
+                novel = self._novels[novel_id]
+                for fs in novel.foreshadowing_tracking:
+                    if fs.seed == seed:
+                        fs.status = "resolved"
+                        novel.updated_at = datetime.now()
+                        return True
         return False
 
 

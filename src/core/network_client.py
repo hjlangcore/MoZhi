@@ -3,10 +3,58 @@ from datetime import datetime
 from loguru import logger
 import requests
 import time
+import socket
 import urllib3
+import ipaddress
+from urllib.parse import urlparse
 from urllib3.exceptions import InsecureRequestWarning
 
 urllib3.disable_warnings(InsecureRequestWarning)
+
+
+# SSRF 防护配置
+ALLOWED_SCHEMES = ['http', 'https']
+BLOCKED_IP_RANGES = [
+    ipaddress.ip_network('10.0.0.0/8'),
+    ipaddress.ip_network('172.16.0.0/12'),
+    ipaddress.ip_network('192.168.0.0/16'),
+    ipaddress.ip_network('127.0.0.0/8'),
+    ipaddress.ip_network('0.0.0.0/8'),
+    ipaddress.ip_network('169.254.0.0/16'),
+    ipaddress.ip_network('224.0.0.0/4'),
+    ipaddress.ip_network('240.0.0.0/4'),
+]
+
+
+def is_safe_url(url: str) -> bool:
+    """检查 URL 是否安全，防止 SSRF 攻击"""
+    try:
+        parsed = urlparse(url)
+        
+        # 检查协议白名单
+        if parsed.scheme not in ALLOWED_SCHEMES:
+            logger.warning(f"SSRF protection: blocked scheme '{parsed.scheme}' for URL: {url[:50]}")
+            return False
+        
+        # 检查 hostname 是否存在
+        if not parsed.hostname:
+            logger.warning(f"SSRF protection: no hostname for URL: {url[:50]}")
+            return False
+        
+        # 解析域名获取 IP
+        ip = socket.gethostbyname(parsed.hostname)
+        ip_obj = ipaddress.ip_address(ip)
+        
+        # 检查是否在阻止的 IP 范围内
+        for blocked in BLOCKED_IP_RANGES:
+            if ip_obj in blocked:
+                logger.warning(f"SSRF protection: blocked IP {ip} for URL: {url[:50]}")
+                return False
+        
+        return True
+    except Exception as e:
+        logger.error(f"SSRF protection: error checking URL {url[:50]}: {e}")
+        return False
 
 
 class NetworkClient:
@@ -64,6 +112,11 @@ class NetworkClient:
         url: str,
         **kwargs
     ) -> Tuple[int, str, Dict[str, Any]]:
+        # SSRF 防护检查
+        if not is_safe_url(url):
+            logger.error(f"SSRF protection: blocked request to unsafe URL: {url[:80]}")
+            return 0, "SSRF protection: unsafe URL blocked", {}
+        
         self._add_rate_limit_delay()
 
         proxies = None

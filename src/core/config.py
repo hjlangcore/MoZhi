@@ -1,6 +1,8 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
+import secrets
 
 
 class Settings(BaseSettings):
@@ -34,12 +36,16 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
     CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: List[str] = ["*"]
-    CORS_ALLOW_HEADERS: List[str] = ["*"]
+    CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    CORS_ALLOW_HEADERS: List[str] = ["Authorization", "Content-Type", "X-Requested-With", "Accept"]
 
     API_PREFIX: str = "/api/v1"
 
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    # 安全密钥：必须从环境变量读取，无默认值
+    SECRET_KEY: str = Field(
+        default_factory=lambda: os.getenv("SECRET_KEY") or secrets.token_urlsafe(32),
+        description="Secret key for JWT and session encryption. Must be set in production."
+    )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
@@ -48,8 +54,14 @@ class Settings(BaseSettings):
     NETWORK_REQUEST_INTERVAL: int = 5
     NETWORK_VERIFY_SSL: bool = True
 
-    PROXY_ENABLED: bool = True
-    PROXY_URL: str = "http://127.0.0.1:7890"
+    # SSRF 防护：允许的 URL schemes
+    ALLOWED_URL_SCHEMES: List[str] = ["http", "https"]
+    
+    # SSRF 防护：是否启用 IP 白名单检查
+    ENABLE_SSRF_PROTECTION: bool = True
+
+    PROXY_ENABLED: bool = False
+    PROXY_URL: str = ""
 
 
 class NovelConfig(BaseModel):
