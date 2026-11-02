@@ -1,4 +1,5 @@
-fastapi>=0.104.0
+# 0.155 dropped Query(enum=...), which src/api/routes/network_routes.py still uses.
+fastapi>=0.104.0,<0.155.0
 uvicorn>=0.24.0
 pydantic>=2.6.1,<3.0.0
 pydantic-settings>=2.0.0

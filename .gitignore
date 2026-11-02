@@ -20,10 +20,13 @@ venv/
 .coverage
 coverage/
 
-# Security and test reports
-SECURITY_AND_PERFORMANCE_REPORT.md
-SECURITY_FIXES_SUMMARY.md
-RUNTIME_TEST_REPORT.md
+# Reports now live in docs/ and are tracked with the repo.
+
+# Runtime data created by a local run
+data/
+logs/
+novel_output/
+*.db
 
 # IDE
 .vscode/

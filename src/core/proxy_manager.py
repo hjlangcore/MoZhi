@@ -1,3 +1,8 @@
+"""Optional HTTP proxy selection for outbound research requests.
+
+Responsible use: a proxy is only a network path. Use it for access you are
+allowed to make, and leave it unset unless you need it.
+"""
 from typing import Optional, Dict, List
 from loguru import logger
 import os
