@@ -5,6 +5,9 @@
   2. 提取正文内容（去广告/导航/脚本）
   3. 可选 LLM 摘要分析
   4. 集成到知识管线
+
+Responsible use: fetch a URL only when that site's terms and robots.txt allow
+it. Do not use this client to bypass access rules.
 """
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field

@@ -1,3 +1,8 @@
+"""Outbound HTTP client with scheme and private-address checks.
+
+Responsible use: respect the target site's terms, robots.txt, and rate limits.
+The address checks block private targets; they are not permission to crawl.
+"""
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 from loguru import logger

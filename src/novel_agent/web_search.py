@@ -1,4 +1,9 @@
-"""联网搜索模块 — 支持多引擎搜索，为小说创作提供参考资料"""
+"""联网搜索模块 — 支持多引擎搜索，为小说创作提供参考资料
+
+Responsible use: search and open results only within the engine's and the
+destination site's terms. Do not route queries through a proxy to conceal
+access you are not allowed to make.
+"""
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from loguru import logger

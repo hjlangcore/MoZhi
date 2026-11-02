@@ -1,3 +1,9 @@
+"""Optional fetches of named public AI-site pages for research context.
+
+Responsible use: request a site only when its terms and robots.txt allow it.
+Keep the built-in interval, and do not send the traffic through a proxy to
+hide access the site does not permit. This module does not grant that right.
+"""
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from loguru import logger
